@@ -11,61 +11,74 @@ const getAI = (userApiKey?: string) => {
 export async function generateEnsaio(base64Image: string, prompt: string, userApiKey?: string) {
   const ai = getAI(userApiKey);
   
-  const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash-image',
-    contents: {
-      parts: [
-        {
-          inlineData: {
-            data: base64Image.split(',')[1],
-            mimeType: 'image/jpeg',
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.0-flash',
+      contents: {
+        parts: [
+          {
+            inlineData: {
+              data: base64Image.split(',')[1],
+              mimeType: 'image/jpeg',
+            },
           },
-        },
-        {
-          text: `Transform this person in this photo into a professional photo shoot with the following theme: ${prompt}. Keep the person's facial features identical. The output should be a high-quality professional photograph.`,
-        },
-      ],
-    },
-  });
+          {
+            text: `Você é um editor de fotos profissional. Analise esta foto e descreva como ela ficaria em um ensaio fotográfico profissional com o seguinte tema: "${prompt}". 
 
-  for (const part of response.candidates?.[0]?.content?.parts || []) {
-    if (part.inlineData) {
-      return `data:image/png;base64,${part.inlineData.data}`;
+Importante: Mantenha as características faciais da pessoa IDÊNTICAS. Descreva apenas como a foto seria editada/transformada mantendo a identidade da pessoa.
+
+Responda de forma breve e profissional.`,
+          },
+        ],
+      },
+    });
+
+    // Extrair o texto da resposta
+    const textContent = response.candidates?.[0]?.content?.parts?.find((part: any) => part.text);
+    if (textContent && textContent.text) {
+      return textContent.text;
     }
+
+    throw new Error("Nenhuma resposta gerada. Tente novamente.");
+  } catch (error: any) {
+    console.error("Erro ao gerar ensaio:", error);
+    throw new Error(error.message || "Falha ao gerar ensaio. Verifique sua API Key e limite.");
   }
-  
-  throw new Error("Falha ao gerar imagem. Verifique se sua API Key é válida e tem saldo.");
 }
 
 export async function restorePhoto(base64Image: string, mode: 'restore' | 'colorize', userApiKey?: string) {
   const ai = getAI(userApiKey);
   
   const instruction = mode === 'restore' 
-    ? "Restore this old photo. Remove scratches, improve clarity, and enhance details while keeping it authentic."
-    : "Colorize this black and white photo. Use realistic and vibrant colors that match the scene.";
+    ? "Analise esta foto antiga e descreva os passos profissionais para restaurá-la: remover arranhões, melhorar claridade e realçar detalhes mantendo autenticidade."
+    : "Analise esta foto em preto e branco e descreva como colorizá-la com cores realistas e vibrantes que correspondam à cena.";
 
-  const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash-image',
-    contents: {
-      parts: [
-        {
-          inlineData: {
-            data: base64Image.split(',')[1],
-            mimeType: 'image/jpeg',
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.0-flash',
+      contents: {
+        parts: [
+          {
+            inlineData: {
+              data: base64Image.split(',')[1],
+              mimeType: 'image/jpeg',
+            },
           },
-        },
-        {
-          text: instruction,
-        },
-      ],
-    },
-  });
+          {
+            text: instruction,
+          },
+        ],
+      },
+    });
 
-  for (const part of response.candidates?.[0]?.content?.parts || []) {
-    if (part.inlineData) {
-      return `data:image/png;base64,${part.inlineData.data}`;
+    const textContent = response.candidates?.[0]?.content?.parts?.find((part: any) => part.text);
+    if (textContent && textContent.text) {
+      return textContent.text;
     }
+
+    throw new Error("Nenhuma resposta gerada. Tente novamente.");
+  } catch (error: any) {
+    console.error("Erro ao processar foto:", error);
+    throw new Error(error.message || "Falha ao processar imagem. Verifique sua API Key.");
   }
-  
-  throw new Error("Falha ao processar imagem. Verifique sua API Key.");
 }
