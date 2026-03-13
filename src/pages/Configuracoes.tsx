@@ -2,38 +2,28 @@ import React, { useState, useEffect } from 'react';
 import { Key, Shield, HelpCircle, ExternalLink, Save, Info, CheckCircle2, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase, handleSupabaseError } from '../lib/supabase';
+import { useApiKey } from '../contexts/ApiKeyContext';
 
 export default function Configuracoes() {
-  const [apiKey, setApiKey] = useState('');
+  const { apiKey, setApiKey, isLoading: contextLoading } = useApiKey();
+  const [localApiKey, setLocalApiKey] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
 
   useEffect(() => {
-    const loadConfig = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
+    setLocalApiKey(apiKey);
+  }, [apiKey]);
 
-      setUserEmail(session.user.email || null);
-      setIsLoading(true);
-      try {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('gemini_api_key')
-          .eq('user_id', session.user.id)
-          .single();
-        
-        if (data) {
-          setApiKey(data.gemini_api_key || '');
-        }
-      } catch (error) {
-        handleSupabaseError(error, 'get', 'profiles');
-      } finally {
-        setIsLoading(false);
+  useEffect(() => {
+    const loadUserInfo = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        setUserEmail(session.user.email || null);
       }
     };
 
-    loadConfig();
+    loadUserInfo();
   }, []);
 
   const handleSave = async (e: React.FormEvent) => {
@@ -46,11 +36,15 @@ export default function Configuracoes() {
       const { error } = await supabase
         .from('profiles')
         .update({
-          gemini_api_key: apiKey
+          gemini_api_key: localApiKey
         })
         .eq('user_id', session.user.id);
       
       if (error) throw error;
+      
+      // Atualiza o contexto global
+      setApiKey(localApiKey);
+      
       toast.success('Configurações salvas com sucesso!');
     } catch (error) {
       handleSupabaseError(error, 'update', 'profiles');
@@ -111,7 +105,7 @@ export default function Configuracoes() {
               <Key className="w-6 h-6 text-primary" />
               <h3 className="text-xl font-bold">Configuração da API</h3>
             </div>
-            {apiKey ? (
+            {localApiKey ? (
               <span className="flex items-center gap-1 text-xs font-bold text-emerald-500 bg-emerald-500/10 px-3 py-1 rounded-full">
                 <CheckCircle2 className="w-3 h-3" /> Conectado
               </span>
@@ -128,11 +122,11 @@ export default function Configuracoes() {
               <div className="relative">
                 <input
                   type="password"
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  disabled={isLoading}
+                  value={localApiKey}
+                  onChange={(e) => setLocalApiKey(e.target.value)}
+                  disabled={isLoading || contextLoading}
                   className="w-full bg-background border border-border rounded-xl py-3 px-4 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all disabled:opacity-50"
-                  placeholder={isLoading ? "Carregando..." : "Cole sua chave (AIza...)"}
+                  placeholder={contextLoading ? "Carregando..." : "Cole sua chave (AIza...)"}
                 />
               </div>
               <p className="text-[10px] text-muted-foreground ml-1 italic">
@@ -141,7 +135,7 @@ export default function Configuracoes() {
             </div>
             <button
               type="submit"
-              disabled={isSaving || isLoading}
+              disabled={isSaving || isLoading || contextLoading}
               className="bg-primary text-primary-foreground font-bold px-8 py-3 rounded-xl gold-glow hover:opacity-90 transition-all flex items-center gap-2 disabled:opacity-50"
             >
               {isSaving ? (
