@@ -6,8 +6,10 @@ import { toast } from 'sonner';
 import { generateEnsaio } from '../services/gemini';
 import { supabase, handleSupabaseError } from '../lib/supabase';
 import { Link } from 'react-router-dom';
+import { useApiKey } from '../contexts/ApiKeyContext';
 
 export default function Gerador() {
+  const { apiKey } = useApiKey();
   const [categoria, setCategoria] = useState<'ensaio' | 'aniversario' | 'profissional'>('ensaio');
   const [cenarioSelecionado, setCenarioSelecionado] = useState(CENARIOS[0].id);
   const [image, setImage] = useState<string | null>(null);
@@ -20,8 +22,18 @@ export default function Gerador() {
 
   useEffect(() => {
     const loadApiKey = async () => {
+      // Primeiro, tenta usar o apiKey do contexto
+      if (apiKey) {
+        setUserApiKey(apiKey);
+        setIsLoadingKey(false);
+        return;
+      }
+
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
+      if (!session) {
+        setIsLoadingKey(false);
+        return;
+      }
 
       try {
         const { data, error } = await supabase
@@ -101,7 +113,7 @@ export default function Gerador() {
     return () => {
       cleanupScenarios.then(cleanup => cleanup && cleanup());
     };
-  }, []);
+  }, [apiKey]);
 
   const cenariosFiltrados = scenarios.filter(c => c.categoria === categoria);
   const selectedCenario = scenarios.find(c => c.id === cenarioSelecionado);
@@ -388,5 +400,3 @@ export default function Gerador() {
     </div>
   );
 }
-
-
